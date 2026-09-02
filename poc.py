@@ -24,14 +24,14 @@ from bleak import BleakClient
 WRITE_UUID = "0000fff3-0000-1000-8000-00805f9b34fb"
 
 # Brightness is a 5-100 field: the app sends slider+5 with a slider max of 95. Values above
-# 100 are not clamped by the firmware -- they wrap, and non-monotonically, so 135 comes out
-# dimmer than 100 while 255 lands between the two. Mapping a 0-255 scale onto this byte
-# makes "brighter" produce a dimmer lamp. See README.md.
+# 100 wrap, non-monotonically -- 135 comes out dimmer than 100, and 255 lands between the
+# two. Mapping a 0-255 scale onto this byte makes "brighter" produce a dimmer lamp.
+# See README.md.
 BRIGHTNESS_MIN = 5
 BRIGHTNESS_MAX = 100
 
-# Type-5 scene indices. 134 is the amber emitter, which RGB cannot reproduce -- an RGB
-# approximation of warm white renders as a dim purple-white instead.
+# Type-5 scene indices. 134 drives the lamp's physical amber emitter; an RGB approximation
+# of warm white through 0x03 renders as a dim purple-white.
 SCENE_AMBER = 134
 SCENES = {134: "Sunset (amber)", 139: "Sunrise", 142: "Summer sun"}
 
@@ -80,8 +80,7 @@ def build_from_cli(cmd: str, params: list[str]) -> bytes:
         if not BRIGHTNESS_MIN <= requested <= BRIGHTNESS_MAX:
             raise ValueError(
                 f"brightness must be {BRIGHTNESS_MIN}-{BRIGHTNESS_MAX}; "
-                f"{requested} is out of range and the lamp wraps rather than clamping, "
-                "so it would come out dimmer than maximum"
+                f"the lamp wraps values above {BRIGHTNESS_MAX} and would come out dimmer than full"
             )
         return build_frame(0x05, bytes([requested]))
     if cmd == "amber":

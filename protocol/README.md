@@ -1,6 +1,6 @@
 # MeRGBW / LT-06 Protocol Notes
 
-Condensed reference. Full detail and verification status in the top-level `README.md`.
+Condensed reference. Full detail in the top-level `README.md`.
 
 Device class: `Sunset lights` (LT-06, app device **type 5**, `夕阳灯`).
 Service `fff0`, write `fff3`, notify `fff4`. Write without response.
@@ -8,34 +8,32 @@ Service `fff0`, write `fff3`, notify `fff4`. Write without response.
 ## Frame format
 
 ```
-Byte0:      0x55 (head)
-Byte1:      cmd
-Byte2:      seq — always 0xFF, a fixed constant (not a segment/device mask)
-Byte3:      length = 5 + payload_len (total frame length, incl. head and checksum)
+Byte0:       0x55 (head)
+Byte1:       cmd
+Byte2:       seq — always 0xFF
+Byte3:       length = 5 + payload_len (total frame length, incl. head and checksum)
 Bytes4..n-2: payload
-Byte n-1:   checksum = (~sum(previous bytes)) & 0xFF   (one's complement)
+Byte n-1:    checksum = (~sum(previous bytes)) & 0xFF   (one's complement)
 ```
 
 ## Commands used by type 5
 
-Type 5 sends only these three, plus power:
-
 | Cmd | Name | Payload |
 |-----|------|---------|
 | `0x01` | POWER | `[1]` on, `[0]` off |
-| `0x03` | SET_COLOR | `[R, G, B]` — order verified on hardware |
-| `0x05` | SET_BRIGHTNESS | `[level]`, **range 5–100** |
-| `0x06` | SET_MODE | `[scene_index]` — single byte for type 5 |
+| `0x03` | SET_COLOR | `[R, G, B]` |
+| `0x05` | SET_BRIGHTNESS | `[level]`, range 5–100 |
+| `0x06` | SET_MODE | `[scene_index]`, a single byte for type 5 |
 
-Full command table (`0x00`–`0x12`, `0xF1`–`0xF6`) is in the top-level README. Note that
-`0x10`/`0x11`/`0x12` (white light / white brightness / cold-and-warm) have **no type-5 call
-site** — they belong to types 3, 6, 7 and 8.
+The full command table (`0x00`–`0x12`, `0xF1`–`0xF6`) is in the top-level README.
+`0x10`/`0x11`/`0x12` (white light, white brightness, cold-and-warm) have no type-5 call
+site; they belong to types 3, 6, 7 and 8.
 
 ## Brightness range and the wrap trap
 
-`wire = slider + 5`, seekbar max 95, so valid wire values are **5–100**.
+`wire = slider + 5`, seekbar max 95, giving valid wire values of **5–100**.
 
-Out-of-range values are not clamped — they wrap, non-monotonically. Measured:
+Values above 100 wrap, non-monotonically:
 
 | Wire | Output |
 |------|--------|
@@ -49,18 +47,18 @@ Clamp to 5–100. Mapping a 0–255 scale onto this byte makes "brighter" go dim
 
 ## Amber
 
-Type 5 has a physical amber emitter that RGB cannot reproduce; `FF AA 5A` renders as dim
-purple-white. Amber is a scene:
+Type 5 has a physical amber emitter reached as a scene. `FF AA 5A` through `0x03` renders
+as dim purple-white.
 
 ```
-AMBER: 55 06 FF 06 86 19     scene 134 "Sunset"  (verified)
+AMBER: 55 06 FF 06 86 19     scene 134 "Sunset"
 ```
 
-- Brightness in scene mode uses the normal `0x05` command (verified).
-- Exit scene by sending any `0x03` colour frame — no dedicated exit command (verified).
-- Untested scenes: 139 `0x8B` Sunrise, 142 `0x8E` Summer sun.
+- Brightness in scene mode uses the normal `0x05` command.
+- Any `0x03` color frame exits the scene.
+- Scenes 139 (`0x8B`, Sunrise) and 142 (`0x8E`, Summer sun) are untested.
 
-## Tested frames
+## Frames
 
 ```
 ON:    55 01 FF 06 01 A3
@@ -74,7 +72,8 @@ FULL:  55 05 FF 06 64 3C
 AMBER: 55 06 FF 06 86 19
 ```
 
+## Status readback
+
 Notify `fff4` can be enabled; the app logs incoming data as plain bytes with cmd in byte 1.
-The type-5 status parser reports only power and brightness — it does **not** report scene or
-any white/amber field. Absence from the status format is not evidence that a capability is
-missing; the amber scene is settable but not reported.
+The type-5 status parser reports power and brightness. Scene and amber state are settable
+and absent from the status format, so track them client-side.
